@@ -1,0 +1,318 @@
+<style>
+  h2.sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+  }
+
+  .contenedor {
+    max-width: 300px;
+    margin: 0 auto;
+    padding: 1.5rem 0;
+  }
+
+  .titulo {
+    font-size: 15px;
+    font-weight: 500;
+    color: var(--text-secondary);
+    text-align: center;
+    margin-bottom: 1rem;
+  }
+
+  .pantalla {
+    background: var(--surface-1);
+    border: 0.5px solid var(--border-strong);
+    border-radius: var(--radius);
+    padding: 12px 20px;
+    text-align: center;
+    font-family: var(--font-mono);
+    font-size: 26px;
+    letter-spacing: 8px;
+    color: var(--text-primary);
+    min-height: 52px;
+    margin-bottom: 16px;
+  }
+
+  .mensaje {
+    font-size: 13px;
+    color: var(--text-secondary);
+    text-align: center;
+    min-height: 18px;
+    margin-bottom: 16px;
+  }
+
+  .teclado {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+    max-width: 280px;
+    margin: 0 auto;
+  }
+
+  .tecla {
+    background: var(--surface-2);
+    border: 0.5px solid var(--border-strong);
+    border-radius: var(--radius);
+    padding: 16px 0;
+    font-size: 20px;
+    font-weight: 500;
+    color: var(--text-primary);
+    cursor: pointer;
+    transition: background 0.1s, transform 0.08s;
+    user-select: none;
+    text-align: center;
+  }
+
+  .tecla:hover {
+    background: var(--surface-1);
+  }
+
+  .tecla:active {
+    transform: scale(0.95);
+  }
+
+  .tecla-numero {
+    position: relative;
+  }
+
+  .tecla-borrar {
+    font-size: 14px;
+    color: var(--text-danger);
+  }
+
+  .tecla-ingresar {
+    font-size: 13px;
+    color: var(--text-accent);
+    font-weight: 500;
+  }
+</style>
+
+<h2 class="sr-only">Teclado virtual para ingreso de clave bancaria</h2>
+
+<div class="contenedor">
+  <p class="titulo">
+    <i class="ti ti-lock" aria-hidden="true" style="margin-right:6px;font-size:16px;"></i>
+    Ingreso de clave
+  </p>
+
+  <div class="pantalla" id="pantalla" aria-live="polite" aria-label="Campo de clave"></div>
+  <div class="mensaje" id="mensaje">Ingrese su clave de 4 a 6 dígitos</div>
+
+  <div class="teclado" id="teclado" role="group" aria-label="Teclado numérico"></div>
+</div>
+
+<script>
+  // Configuración
+  const MIN_DIGITOS = 4;
+  const MAX_DIGITOS = 6;
+  const MAX_INTENTOS = 3;
+  const PUNTO = '●';
+  const CLAVE_CORRECTA = '1513'; // En producción esto va en el servidor
+
+  // Estado
+  let clave = '';
+  let intentos = 0;
+  let tecladoBloqueado = false;
+
+  // Elementos de la página
+  const pantalla = document.getElementById('pantalla');
+  const mensaje = document.getElementById('mensaje');
+  const teclado = document.getElementById('teclado');
+
+  // Mezcla un arreglo al azar (algoritmo Fisher-Yates)
+  function mezclar(lista) {
+    const copia = [...lista];
+    for (let i = copia.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [copia[i], copia[j]] = [copia[j], copia[i]];
+    }
+    return copia;
+  }
+
+  // Crea una tecla numérica
+  function crearTeclaNumero(numero) {
+    const boton = document.createElement('button');
+    boton.type = 'button';
+    boton.className = 'tecla tecla-numero';
+    boton.textContent = numero;
+    boton.dataset.numero = numero;
+    boton.setAttribute('aria-label', `Dígito ${numero}`);
+    boton.addEventListener('click', () => agregarDigito(numero));
+    return boton;
+  }
+
+  // Oculta todos los números del teclado (muestra puntos)
+  function ocultarTodosNumeros() {
+    teclado.querySelectorAll('.tecla-numero').forEach(tecla => {
+      tecla.textContent = PUNTO;
+    });
+  }
+
+  // Vuelve a mostrar todos los números
+  function mostrarTodosNumeros() {
+    teclado.querySelectorAll('.tecla-numero').forEach(tecla => {
+      tecla.textContent = tecla.dataset.numero;
+    });
+  }
+
+  // Al pasar el mouse por un número, oculta todos; al salir, los muestra
+  function configurarOcultarNumeros() {
+    teclado.addEventListener('mouseover', (evento) => {
+      if (evento.target.closest('.tecla-numero')) {
+        ocultarTodosNumeros();
+      }
+    });
+
+    teclado.addEventListener('mouseout', (evento) => {
+      const destino = evento.relatedTarget;
+      if (!destino || !destino.closest('.tecla-numero')) {
+        mostrarTodosNumeros();
+      }
+    });
+  }
+
+  // Crea una tecla de acción (borrar o ingresar)
+  function crearTeclaAccion(texto, clase, alClic, etiqueta) {
+    const boton = document.createElement('button');
+    boton.type = 'button';
+    boton.className = `tecla ${clase}`;
+    boton.textContent = texto;
+    boton.setAttribute('aria-label', etiqueta);
+    boton.addEventListener('click', alClic);
+    return boton;
+  }
+
+  // Dibuja el teclado con números en posiciones aleatorias
+  function dibujarTeclado() {
+    teclado.innerHTML = '';
+    const numeros = mezclar(['1', '2', '3', '4', '5', '6', '7', '8', '9', '0']);
+
+    // Primeras 9 teclas
+    numeros.slice(0, 9).forEach(num => teclado.appendChild(crearTeclaNumero(num)));
+
+    // Última fila: Borrar | último número | Ingresar
+    teclado.appendChild(crearTeclaAccion('⌫ Borrar', 'tecla-borrar', borrarDigito, 'Borrar último dígito'));
+    teclado.appendChild(crearTeclaNumero(numeros[9]));
+    teclado.appendChild(crearTeclaAccion('Ingresar', 'tecla-ingresar', validarClave, 'Confirmar clave'));
+  }
+
+  // Muestra la clave como puntos en la pantalla
+  function actualizarPantalla() {
+    pantalla.textContent = PUNTO.repeat(clave.length);
+  }
+
+  // Agrega un dígito y reorganiza el teclado
+  function agregarDigito(numero) {
+    if (tecladoBloqueado) return;
+
+    if (clave.length >= MAX_DIGITOS) {
+      mostrarMensaje(`Máximo ${MAX_DIGITOS} dígitos`, 'advertencia');
+      return;
+    }
+
+    clave += numero;
+    actualizarPantalla();
+    mostrarMensaje(`${clave.length} dígito(s) ingresado(s)`);
+    dibujarTeclado(); // Cambia las posiciones después de cada selección
+  }
+
+  // Quita el último dígito
+  function borrarDigito() {
+    if (tecladoBloqueado || clave.length === 0) return;
+
+    clave = clave.slice(0, -1);
+    actualizarPantalla();
+    mostrarMensaje(
+      clave.length === 0
+        ? 'Ingrese su clave de 4 a 6 dígitos'
+        : `${clave.length} dígito(s) ingresado(s)`
+    );
+  }
+
+  // Comprueba si la clave es correcta
+  function validarClave() {
+    if (tecladoBloqueado) return;
+
+    if (clave.length < MIN_DIGITOS) {
+      mostrarMensaje(`Mínimo ${MIN_DIGITOS} dígitos requeridos`, 'error');
+      return;
+    }
+
+    if (clave === CLAVE_CORRECTA) {
+      accesoCorrecto();
+    } else {
+      accesoIncorrecto();
+    }
+  }
+
+  // Clave correcta
+  function accesoCorrecto() {
+    pantalla.textContent = '✓';
+    pantalla.style.color = 'var(--text-success)';
+    mensaje.textContent = '¡Acceso concedido! Bienvenido.';
+    mensaje.style.color = 'var(--text-success)';
+    bloquearTeclado();
+    intentos = 0;
+    setTimeout(reiniciar, 2500);
+  }
+
+  // Clave incorrecta
+  function accesoIncorrecto() {
+    intentos++;
+    clave = '';
+    actualizarPantalla();
+    dibujarTeclado();
+
+    if (intentos >= MAX_INTENTOS) {
+      pantalla.textContent = '✕';
+      pantalla.style.color = 'var(--text-danger)';
+      mostrarMensaje('Tarjeta bloqueada. Comuníquese con el banco.', 'error');
+      bloquearTeclado();
+    } else {
+      mostrarMensaje(`Clave incorrecta. Intento ${intentos} de ${MAX_INTENTOS}`, 'error');
+    }
+  }
+
+  // Desactiva el teclado visualmente
+  function bloquearTeclado() {
+    tecladoBloqueado = true;
+    teclado.style.opacity = '0.3';
+    teclado.style.pointerEvents = 'none';
+  }
+
+  // Activa el teclado
+  function activarTeclado() {
+    tecladoBloqueado = false;
+    teclado.style.opacity = '1';
+    teclado.style.pointerEvents = 'auto';
+  }
+
+  // Muestra mensajes al usuario
+  function mostrarMensaje(texto, tipo = 'normal') {
+    const colores = {
+      normal: 'var(--text-secondary)',
+      error: 'var(--text-danger)',
+      advertencia: 'var(--text-warning)'
+    };
+    mensaje.textContent = texto;
+    mensaje.style.color = colores[tipo] || colores.normal;
+  }
+
+  // Vuelve al estado inicial
+  function reiniciar() {
+    clave = '';
+    intentos = 0;
+    pantalla.textContent = '';
+    pantalla.style.color = 'var(--text-primary)';
+    mensaje.style.color = 'var(--text-secondary)';
+    activarTeclado();
+    mostrarMensaje('Ingrese su clave de 4 a 6 dígitos');
+    dibujarTeclado();
+  }
+
+  // Inicio
+  dibujarTeclado();
+  configurarOcultarNumeros();
+</script>
