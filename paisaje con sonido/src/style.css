@@ -1,0 +1,89 @@
+body {
+  background-color: lightblue;
+}
+
+#paisaje {
+  position: relative;
+  width: 800px;
+  height: 500px;
+  border: 1px solid gray;
+  background: #00BFFF;
+  margin: 30px auto;
+  overflow: hidden;
+}
+
+.objeto {
+  position: absolute;
+}
+
+#sol {
+  top: 45px;
+  right: 70px;
+}
+
+#nevado {
+  bottom: -17px;
+  left: -17px;
+}
+
+#nevado2 {
+  bottom: -17px;
+  right: -30px;
+}
+
+#bici {
+  bottom: -25px;
+  left: 350px;
+  z-index: 1;
+}
+
+#arbol {
+  right: 80px;
+  bottom: -4px;
+  z-index: 2;
+}
+
+/* Nube */
+#nube {
+  top: 30px;
+  left: 50px;
+}
+
+/* Cursor pointer en la bicicleta */
+#bici {
+  cursor: pointer;
+  transition: transform 0.2s;
+}
+
+#bici:hover {
+  transform: scale(1.1);
+}
+
+/* Botón de sonido */
+#btn-sonido {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  z-index: 10;
+  padding: 8px 16px;
+  border: none;
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.3);
+  backdrop-filter: blur(8px);
+  color: #fff;
+  font-size: 14px;
+  font-weight: bold;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+
+#btn-sonido:hover {
+  background: rgba(255, 255, 255, 0.5);
+  transform: scale(1.05);
+}
+
+#btn-sonido.activo {
+  background: rgba(76, 175, 80, 0.6);
+  box-shadow: 0 2px 12px rgba(76, 175, 80, 0.4);
+}
